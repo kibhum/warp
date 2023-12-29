@@ -188,6 +188,18 @@ async fn get_questions(
     }
 }
 
+async fn add_question(
+    store: Store,
+    question: Question,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    store
+        .questions
+        .write()
+        .await
+        .insert(question.id.clone(), question);
+    Ok(warp::reply::with_status("Question added", StatusCode::OK))
+}
+
 #[tokio::main]
 async fn main() {
     let store = Store::new();
@@ -203,12 +215,21 @@ async fn main() {
         // params, for example)
         .and(warp::path::end())
         .and(warp::query())
-        .and(store_filter)
-        .and_then(get_questions)
-        .recover(return_error);
+        .and(store_filter.clone())
+        .and_then(get_questions);
+
+    let add_question = warp::post()
+        .and(warp::path("questions"))
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(add_question);
     //Defines the routes variable,
     // which will come in handy later
-    let routes = get_questions.with(cors);
+    let routes = get_questions
+        .or(add_question)
+        .with(cors)
+        .recover(return_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
