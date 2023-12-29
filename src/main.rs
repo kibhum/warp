@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 // use std::io::{Error, ErrorKind};
 // use std::str::FromStr;
 use warp::{
@@ -9,12 +11,12 @@ use warp::{
 };
 #[derive(Clone)]
 struct Store {
-    questions: HashMap<QuestionId, Question>,
+    questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
 }
 impl Store {
     fn new() -> Self {
         Store {
-            questions: HashMap::new(),
+            questions: Arc::new(RwLock::new(Self::init())),
         }
     }
 
@@ -176,12 +178,12 @@ async fn get_questions(
 
     if !params.is_empty() {
         let pagination = extract_pagination(params)?;
-        let res: Vec<Question> = store.questions.values().cloned().collect();
+        let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
         let res = check_valid_range(&pagination, res)?;
         let res = &res[pagination.start..pagination.end];
         Ok(warp::reply::json(&res))
     } else {
-        let res: Vec<Question> = store.questions.values().cloned().collect();
+        let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
         Ok(warp::reply::json(&res))
     }
 }
