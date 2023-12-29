@@ -33,6 +33,84 @@ struct Question {
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 struct QuestionId(String);
 
+#[derive(Debug)]
+enum Error {
+    ParseError(std::num::ParseIntError),
+    MissingParameters,
+    InvalidRange,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            Error::ParseError(ref err) => {
+                write!(f, "Cannot parse parameter: {}", err)
+            }
+            Error::MissingParameters => write!(f, "Missing parameter"),
+            Error::InvalidRange => write!(f, "Invalid Range"),
+        }
+    }
+}
+impl Reject for Error {}
+
+#[derive(Debug)]
+struct Pagination {
+    start: usize,
+    end: usize,
+}
+
+fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
+    // Uses the .contains method on the
+    // HashMap to check if both
+    // parameters are there
+    if params.contains_key("start") && params.contains_key("end") {
+        // If both parameters are there, we return Result
+        // (via return Ok()). We need the return keyword
+        // here because we want to return early.
+        return Ok(
+            // Creates a new Pagination
+            // object and sets the start
+            // and end number
+            Pagination {
+                start: params
+                    // The .get method on HashMap returns an
+                    // option, because it can’t be sure that the key
+                    // exists. We can do the unsafe .unwrap here,
+                    // because we already checked if both parameters
+                    // are in the HashMap a few lines earlier. We parse
+                    // the containing &str value to a usize integer
+                    // type. This returns Result, which we unwrap or
+                    // return an error if it fails via .map_err and the
+                    // question mark at the end of the line.
+                    .get("start")
+                    .unwrap()
+                    .parse::<usize>()
+                    .map_err(Error::ParseError)?,
+                end: params
+                    .get("end")
+                    .unwrap()
+                    .parse::<usize>()
+                    .map_err(Error::ParseError)?,
+            },
+        );
+    }
+    // If not, the if clause isn’t being executed and we go
+    // right down to Err, where we return our custom
+    // MissingParameters error, which we access from
+    // the Error enum with the double colons (::).
+    Err(Error::MissingParameters)
+}
+
+fn check_valid_range(pagination: &Pagination, res: Vec<Question>) -> Result<Vec<Question>, Error> {
+    if pagination.start > res.len()
+        || pagination.end > res.len()
+        || pagination.end > pagination.start
+    {
+        return Ok(res);
+    }
+    Err(Error::InvalidRange)
+}
+
 // impl Question {
 //     fn new(id: QuestionId, title: String, content: String, tags: Option<Vec<String>>) -> Self {
 //         Question {
@@ -68,7 +146,11 @@ struct QuestionId(String);
 //     }
 // }
 
-async fn get_questions(store: Store) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_questions(
+    params: HashMap<String, String>,
+    store: Store,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("{:?}", params);
     // let question = Question::new(
     //     QuestionId::from_str("1").expect("No id provided"),
     //     "First Question".to_string(),
@@ -80,8 +162,28 @@ async fn get_questions(store: Store) -> Result<impl warp::Reply, warp::Rejection
     //     Err(_) => Err(warp::reject::custom(InvalidId)),
     //     Ok(_) => Ok(warp::reply::json(&question)),
     // }
-    let res: Vec<Question> = store.questions.values().cloned().collect();
-    Ok(warp::reply::json(&res))
+    // match params.get("start") {
+    //     Some(start) => println!("{}", start),
+    //     None => println!("No start value"),
+    // }
+    // let mut start = 0;
+    // if let Some(n) = params.get("start") {
+    //     start = n.parse::<usize>().expect("Could not parse start");
+    // }
+    // println!("{}", start);
+    // let res: Vec<Question> = store.questions.values().cloned().collect();
+    // Ok(warp::reply::json(&res))
+
+    if !params.is_empty() {
+        let pagination = extract_pagination(params)?;
+        let res: Vec<Question> = store.questions.values().cloned().collect();
+        let res = check_valid_range(&pagination, res)?;
+        let res = &res[pagination.start..pagination.end];
+        Ok(warp::reply::json(&res))
+    } else {
+        let res: Vec<Question> = store.questions.values().cloned().collect();
+        Ok(warp::reply::json(&res))
+    }
 }
 
 #[tokio::main]
@@ -120,7 +222,12 @@ async fn main() {
 
 async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     println!("{:?}", r);
-    if let Some(error) = r.find::<CorsForbidden>() {
+    if let Some(error) = r.find::<Error>() {
+        Ok(warp::reply::with_status(
+            error.to_string(),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+        ))
+    } else if let Some(error) = r.find::<CorsForbidden>() {
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::FORBIDDEN,
