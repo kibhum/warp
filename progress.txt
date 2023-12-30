@@ -1,2 +1,2 @@
-Page - 103
-Sending request
+Page - 108
+Removing questions from the storage

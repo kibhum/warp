@@ -6,8 +6,11 @@ use tokio::sync::RwLock;
 // use std::io::{Error, ErrorKind};
 // use std::str::FromStr;
 use warp::{
-    filters::cors::CorsForbidden, http::Method, http::StatusCode, reject::Reject, Filter,
-    Rejection, Reply,
+    filters::{body::BodyDeserializeError, cors::CorsForbidden},
+    http::Method,
+    http::StatusCode,
+    reject::Reject,
+    Filter, Rejection, Reply,
 };
 #[derive(Clone)]
 struct Store {
@@ -40,6 +43,7 @@ enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidRange,
+    QuestionNotFound,
 }
 
 impl std::fmt::Display for Error {
@@ -50,6 +54,7 @@ impl std::fmt::Display for Error {
             }
             Error::MissingParameters => write!(f, "Missing parameter"),
             Error::InvalidRange => write!(f, "Invalid Range"),
+            Error::QuestionNotFound => write!(f, "Question not found"),
         }
     }
 }
@@ -200,6 +205,18 @@ async fn add_question(
     Ok(warp::reply::with_status("Question added", StatusCode::OK))
 }
 
+async fn update_question(
+    id: String,
+    store: Store,
+    question: Question,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    match store.questions.write().await.get_mut(&QuestionId(id)) {
+        Some(q) => *q = question,
+        None => return Err(warp::reject::custom(Error::QuestionNotFound)),
+    }
+    Ok(warp::reply::with_status("Question updated", StatusCode::OK))
+}
+
 #[tokio::main]
 async fn main() {
     let store = Store::new();
@@ -224,10 +241,25 @@ async fn main() {
         .and(store_filter.clone())
         .and(warp::body::json())
         .and_then(add_question);
+
+    let update_question = warp::put()
+        .and(warp::path("questions"))
+        // Adds a String parameter, so
+        // the filter is getting triggered for
+        // /questions/1234, for example
+        .and(warp::path::param::<String>())
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        // Extracts the JSON body,
+        // which is getting added to
+        // the parameters as well
+        .and(warp::body::json())
+        .and_then(update_question);
     //Defines the routes variable,
     // which will come in handy later
     let routes = get_questions
         .or(add_question)
+        .or(update_question)
         .with(cors)
         .recover(return_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
@@ -254,6 +286,11 @@ async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::FORBIDDEN,
+        ))
+    } else if let Some(error) = r.find::<BodyDeserializeError>() {
+        Ok(warp::reply::with_status(
+            error.to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
         ))
     }
     // else if let Some(_InvalidId) = r.find::<InvalidId>() {
