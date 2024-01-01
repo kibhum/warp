@@ -1,2 +1,2 @@
-Page - 108
-Removing questions from the storage
+Page - 115
+Cleaning up the codebase
