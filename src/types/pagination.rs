@@ -1,5 +1,5 @@
-use crate::error;
 use crate::types::question::Question;
+use handle_errors::Error;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub struct Pagination {
     pub end: usize,
 }
 
-pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, error::Error> {
+pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
     // Uses the .contains method on the
     // HashMap to check if both
     // parameters are there
@@ -34,12 +34,12 @@ pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination,
                     .get("start")
                     .unwrap()
                     .parse::<usize>()
-                    .map_err(error::Error::ParseError)?,
+                    .map_err(Error::ParseError)?,
                 end: params
                     .get("end")
                     .unwrap()
                     .parse::<usize>()
-                    .map_err(error::Error::ParseError)?,
+                    .map_err(Error::ParseError)?,
             },
         );
     }
@@ -47,18 +47,18 @@ pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination,
     // right down to Err, where we return our custom
     // MissingParameters error, which we access from
     // the Error enum with the double colons (::).
-    Err(error::Error::MissingParameters)
+    Err(Error::MissingParameters)
 }
 
 pub fn check_valid_pagination_range(
     pagination: &Pagination,
     res: Vec<Question>,
-) -> Result<Vec<Question>, error::Error> {
+) -> Result<Vec<Question>, Error> {
     if pagination.start > res.len()
         || pagination.end > res.len()
         || pagination.end > pagination.start
     {
         return Ok(res);
     }
-    Err(error::Error::InvalidRange)
+    Err(Error::InvalidRange)
 }
