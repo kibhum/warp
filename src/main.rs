@@ -1,3 +1,4 @@
+#![warn(clippy::all)]
 use handle_errors::return_error;
 mod routes;
 mod store;
