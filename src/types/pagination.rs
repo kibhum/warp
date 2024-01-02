@@ -2,12 +2,20 @@ use crate::types::question::Question;
 use handle_errors::Error;
 use std::collections::HashMap;
 
+/// Pagination struct that is getting extracted
+/// from query params
 #[derive(Debug)]
 pub struct Pagination {
+    /// The index of the first item that has to be returned
     pub start: usize,
+    /// The index of the last item that has to be returned
     pub end: usize,
 }
-
+/// Extract query parameters from the `/questions` route
+/// # Example query
+/// GET requests to this route can have a pagination attached so we just
+/// return the questions we need
+/// `/questions?start=1&end=10`
 pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
     // Uses the .contains method on the
     // HashMap to check if both
@@ -21,6 +29,8 @@ pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination,
             // object and sets the start
             // and end number
             Pagination {
+                // Takes the "start" parameter in the query
+                // and tries to convert it to a number
                 start: params
                     // The .get method on HashMap returns an
                     // option, because it can’t be sure that the key
@@ -35,6 +45,8 @@ pub fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination,
                     .unwrap()
                     .parse::<usize>()
                     .map_err(Error::ParseError)?,
+                // Takes the "end" parameter in the query
+                // and tries to convert it to a number
                 end: params
                     .get("end")
                     .unwrap()
