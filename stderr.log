@@ -1,0 +1,13 @@
+2024-01-04T01:00:07.857709700+03:00 - This is an error!
+2024-01-04T01:00:07.857865100+03:00 - This is info!
+2024-01-04T01:00:07.857933300+03:00 - This is a warning!
+2024-01-04T01:00:07.862223900+03:00 - Server::run; addr=127.0.0.1:3030
+2024-01-04T01:00:07.862332400+03:00 - listening on http://127.0.0.1:3030
+2024-01-04T01:02:07.739504300+03:00 - parsed 8 headers
+2024-01-04T01:02:07.739618200+03:00 - incoming body is content-length (94 bytes)
+2024-01-04T01:02:07.740064500+03:00 - incoming body completed
+2024-01-04T01:02:07.740973200+03:00 - flushed 131 bytes
+2024-01-04T01:02:11.507693800+03:00 - parsed 6 headers
+2024-01-04T01:02:11.507816900+03:00 - incoming body is empty
+2024-01-04T01:02:11.508027100+03:00 - route was called without a query string, defaulting to empty
+2024-01-04T01:02:11.508911700+03:00 - flushed 264 bytes
