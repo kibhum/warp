@@ -4,12 +4,23 @@ use warp::{
     reject::Reject,
     Rejection, Reply,
 };
+// Imports the sqlx Error and
+// renames it so there is no
+// confusion with our own
+// Error enum
+use sqlx::error::Error as SqlxError;
+
 #[derive(Debug)]
 pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidRange,
     QuestionNotFound,
+    // Adds a new error
+    // type to our enum,
+    // which can hold the
+    // actual sqlx error
+    DatabaseQueryError(SqlxError),
 }
 
 impl std::fmt::Display for Error {
@@ -21,6 +32,9 @@ impl std::fmt::Display for Error {
             Error::MissingParameters => write!(f, "Missing parameter"),
             Error::InvalidRange => write!(f, "Invalid Range"),
             Error::QuestionNotFound => write!(f, "Question not found"),
+            Error::DatabaseQueryError(_) => {
+                write!(f, "Query could not be executed")
+            }
         }
     }
 }

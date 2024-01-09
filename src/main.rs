@@ -68,7 +68,11 @@ async fn main() {
     //     );
     // });
 
-    let store = store::Store::new();
+    // let store = store::Store::new();
+    // if you need to add a username and password,
+    // the connection would look like:
+    // "postgres:/ /username:password@localhost:5432/rustwebdev"
+    let store = store::Store::new("postgres://postgres:sqlkibethh@localhost/rustwebdev").await;
     let store_filter = warp::any().map(move || store.clone());
     // let id_filter = warp::any().map(|| uuid::Uuid::new_v4().to_string());
 
@@ -120,7 +124,7 @@ async fn main() {
         // Adds a String parameter, so
         // the filter is getting triggered for
         // /questions/1234, for example
-        .and(warp::path::param::<String>())
+        .and(warp::path::param::<i32>())
         .and(warp::path::end())
         .and(store_filter.clone())
         // Extracts the JSON body,
@@ -131,7 +135,7 @@ async fn main() {
 
     let delete_question = warp::delete()
         .and(warp::path("questions"))
-        .and(warp::path::param::<String>())
+        .and(warp::path::param::<i32>())
         .and(warp::path::end())
         .and(store_filter.clone())
         .and_then(routes::question::delete_question);
