@@ -1,2 +1,2 @@
-Page - 177
-Adding a database
+Page - 204
+Error handling and tracing database interactions
