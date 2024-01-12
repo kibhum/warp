@@ -1,7 +1,7 @@
 use crate::store::Store;
-use crate::types::answer::{Answer, AnswerId, NewAnswer};
-use crate::types::question::QuestionId;
-use std::collections::HashMap;
+use crate::types::answer::NewAnswer;
+// use crate::types::question::QuestionId;
+// use std::collections::HashMap;
 use warp::http::StatusCode;
 
 pub async fn add_answer(

@@ -1,7 +1,7 @@
 use crate::store::Store;
-use crate::types::question::{NewQuestion, Question, QuestionId};
+use crate::types::question::{NewQuestion, Question};
 use crate::types::{pagination::extract_pagination, pagination::Pagination};
-use handle_errors::Error;
+// use handle_errors::Error;
 use std::collections::HashMap;
 // use tracing::{info, instrument};
 use warp::http::StatusCode;
@@ -58,15 +58,22 @@ pub async fn get_questions(
     info!(pagination = false);
     // let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
     // Ok(warp::reply::json(&res))
-    let res: Vec<Question> = match store
+    // let res: Vec<Question> = match store
+    //     .get_questions(pagination.limit, pagination.offset)
+    //     .await
+    // {
+    //     Ok(res) => res,
+    //     Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
+    // };
+
+    // Ok(warp::reply::json(&res))
+    match store
         .get_questions(pagination.limit, pagination.offset)
         .await
     {
-        Ok(res) => res,
-        Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
-    };
-
-    Ok(warp::reply::json(&res))
+        Ok(res) => Ok(warp::reply::json(&res)),
+        Err(e) => Err(warp::reject::custom(e)),
+    }
 }
 
 pub async fn add_question(
@@ -80,10 +87,14 @@ pub async fn add_question(
     //     .insert(question.id.clone(), question);
     // Ok(warp::reply::with_status("Question added", StatusCode::OK))
 
-    if let Err(e) = store.add_question(new_question).await {
-        return Err(warp::reject::custom(Error::DatabaseQueryError(e)));
+    // if let Err(e) = store.add_question(new_question).await {
+    //     return Err(warp::reject::custom(Error::DatabaseQueryError(e)));
+    // }
+    // Ok(warp::reply::with_status("Question added", StatusCode::OK))
+    match store.add_question(new_question).await {
+        Ok(_) => Ok(warp::reply::with_status("Question added", StatusCode::OK)),
+        Err(e) => Err(warp::reject::custom(e)),
     }
-    Ok(warp::reply::with_status("Question added", StatusCode::OK))
 }
 
 pub async fn update_question(
@@ -96,11 +107,15 @@ pub async fn update_question(
     //     None => return Err(warp::reject::custom(Error::QuestionNotFound)),
     // }
     // Ok(warp::reply::with_status("Question updated", StatusCode::OK))
-    let res = match store.update_question(question, id).await {
-        Ok(res) => res,
-        Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
-    };
-    Ok(warp::reply::json(&res))
+    // let res = match store.update_question(question, id).await {
+    //     Ok(res) => res,
+    //     Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
+    // };
+    // Ok(warp::reply::json(&res))
+    match store.update_question(question, id).await {
+        Ok(res) => Ok(warp::reply::json(&res)),
+        Err(e) => Err(warp::reject::custom(e)),
+    }
 }
 
 pub async fn delete_question(id: i32, store: Store) -> Result<impl warp::Reply, warp::Rejection> {
@@ -109,11 +124,18 @@ pub async fn delete_question(id: i32, store: Store) -> Result<impl warp::Reply, 
     //     None => Err(warp::reject::custom(Error::QuestionNotFound)),
     // }
 
-    if let Err(e) = store.delete_question(id).await {
-        return Err(warp::reject::custom(Error::DatabaseQueryError(e)));
+    // if let Err(e) = store.delete_question(id).await {
+    //     return Err(warp::reject::custom(Error::DatabaseQueryError(e)));
+    // }
+    // Ok(warp::reply::with_status(
+    //     format!("Question {} deleted", id),
+    //     StatusCode::OK,
+    // ))
+    match store.delete_question(id).await {
+        Ok(_) => Ok(warp::reply::with_status(
+            format!("Question {} deleted", id),
+            StatusCode::OK,
+        )),
+        Err(e) => Err(warp::reject::custom(e)),
     }
-    Ok(warp::reply::with_status(
-        format!("Question {} deleted", id),
-        StatusCode::OK,
-    ))
 }
