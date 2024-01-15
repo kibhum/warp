@@ -1,3 +1,4 @@
+use reqwest::Error as ReqwestError;
 use tracing::{event, Level};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
@@ -23,6 +24,7 @@ pub enum Error {
     // actual sqlx error
     // DatabaseQueryError(SqlxError),
     DatabaseQueryError,
+    ExternalAPIError(ReqwestError),
 }
 
 impl std::fmt::Display for Error {
@@ -39,6 +41,9 @@ impl std::fmt::Display for Error {
             // }
             Error::DatabaseQueryError => {
                 write!(f, "Cannot update, invalid data.")
+            }
+            Error::ExternalAPIError(ref err) => {
+                write!(f, "Cannot execute: {}", err)
             }
         }
     }
@@ -65,6 +70,12 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
             crate::Error::DatabaseQueryError.to_string(),
             // "Invalid entity".to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
+        ))
+    } else if let Some(crate::Error::ExternalAPIError(e)) = r.find() {
+        event!(Level::ERROR, "{}", e);
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
         ))
     } else if let Some(error) = r.find::<Error>() {
         Ok(warp::reply::with_status(

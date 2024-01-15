@@ -91,9 +91,47 @@ pub async fn add_question(
     //     return Err(warp::reject::custom(Error::DatabaseQueryError(e)));
     // }
     // Ok(warp::reply::with_status("Question added", StatusCode::OK))
-    match store.add_question(new_question).await {
-        Ok(_) => Ok(warp::reply::with_status("Question added", StatusCode::OK)),
-        Err(e) => Err(warp::reject::custom(e)),
+    // let client = reqwest::Client::new();
+    // let res = client
+    //     .post("https://api.apilayer.com/bad_words?censor_character=*")
+    //     .header("apikey", "8mtoUFCjDvEdyHMxX2MmbEBvPHs8Acm3")
+    //     .body("a list with shit words")
+    //     .send()
+    //     .await
+    //     .map_err(|e| handle_errors::Error::ExternalAPIError(e))?
+    //     .text()
+    //     .await
+    //     .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
+    // println!("{}", res);
+    // match store.add_question(new_question).await {
+    //     Ok(_) => Ok(warp::reply::with_status("Question added", StatusCode::OK)),
+    //     Err(e) => Err(warp::reject::custom(e)),
+    // }
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post("https://api.apilayer.com/bad_words?censor_character=*")
+        .header("apikey", "8mtoUFCjDvEdyHMxX2MmbEBvPHs8Acm3")
+        .body("a list with shit words")
+        .send()
+        .await
+        .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
+
+    match res.error_for_status() {
+        Ok(res) => {
+            let res = res
+                .text()
+                .await
+                .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
+            println!("{}", res);
+            match store.add_question(new_question).await {
+                Ok(_) => Ok(warp::reply::with_status("Question added", StatusCode::OK)),
+                Err(e) => Err(warp::reject::custom(e)),
+            }
+        }
+        Err(err) => Err(warp::reject::custom(
+            handle_errors::Error::ExternalAPIError(err),
+        )),
     }
 }
 
