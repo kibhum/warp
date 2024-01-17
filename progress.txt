@@ -1,2 +1,2 @@
-Page - 231
-Integrate third-party APIs
+Page - 247
+IImplementing a retry for external HTTP calls
