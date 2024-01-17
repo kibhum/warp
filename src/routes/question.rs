@@ -4,31 +4,32 @@ use crate::types::{pagination::extract_pagination, pagination::Pagination};
 // use handle_errors::Error;
 use std::collections::HashMap;
 // use tracing::{info, instrument};
+use crate::profanity::check_profanity;
 use serde::{Deserialize, Serialize};
 use warp::http::StatusCode;
 
 use tracing::{event, info, instrument, Level};
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct APIResponse {
-    message: String,
-}
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct BadWord {
-    original: String,
-    word: String,
-    deviations: i64,
-    info: i64,
-    #[serde(rename = "replacedLen")]
-    replaced_len: i64,
-}
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct BadWordsResponse {
-    content: String,
-    bad_words_total: i64,
-    bad_words_list: Vec<BadWord>,
-    censored_content: String,
-}
+// #[derive(Deserialize, Serialize, Debug, Clone)]
+// pub struct APIResponse {
+//     message: String,
+// }
+// #[derive(Deserialize, Serialize, Debug, Clone)]
+// struct BadWord {
+//     original: String,
+//     word: String,
+//     deviations: i64,
+//     info: i64,
+//     #[serde(rename = "replacedLen")]
+//     replaced_len: i64,
+// }
+// #[derive(Deserialize, Serialize, Debug, Clone)]
+// struct BadWordsResponse {
+//     content: String,
+//     bad_words_total: i64,
+//     bad_words_list: Vec<BadWord>,
+//     censored_content: String,
+// }
 
 #[instrument]
 pub async fn get_questions(
@@ -130,14 +131,14 @@ pub async fn add_question(
     //     Err(e) => Err(warp::reject::custom(e)),
     // }
 
-    let client = reqwest::Client::new();
-    let res = client
-        .post("https://api.apilayer.com/bad_words?censor_character=*")
-        .header("apikey", "8mtoUFCjDvEdyHMxX2MmbEBvPHs8Acm3")
-        .body("a list with shit words")
-        .send()
-        .await
-        .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
+    // let client = reqwest::Client::new();
+    // let res = client
+    //     .post("https://api.apilayer.com/bad_words?censor_character=*")
+    //     .header("apikey", "8mtoUFCjDvEdyHMxX2MmbEBvPHs8Acm3")
+    //     .body("a list with shit words")
+    //     .send()
+    //     .await
+    //     .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
 
     // match res.error_for_status() {
     //     Ok(res) => {
@@ -160,48 +161,63 @@ pub async fn add_question(
     // the response
     // status was
     // successful
-    if !res.status().is_success() {
-        // The status also indicates
-        // whether it was a client or
-        // server error
-        if res.status().is_client_error() {
-            // The APILayer API
-            // doesn’t return a
-            // nice error, so we
-            // create our own.
-            let err = transform_error(res).await;
-            // Returns a
-            // client or server
-            // error with our
-            // APILayerError
-            // encapsulated
-            // return Err(handle_errors::Error::ClientError(err));
-            return Err(warp::reject::custom(handle_errors::Error::ClientError(err)));
-        } else {
-            // The APILayer API
-            // doesn’t return a
-            // nice error, so we
-            // create our own.
-            let err = transform_error(res).await;
-            // Returns a
-            // client or server
-            // error with our
-            // APILayerError
-            // encapsulated
-            // return Err(handle_errors::Error::ServerError(err));
-            return Err(warp::reject::custom(handle_errors::Error::ServerError(err)));
-        }
-    }
-    let res = res
-        .json::<BadWordsResponse>()
-        .await
-        .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
-    let content = res.censored_content;
+    // if !res.status().is_success() {
+    //     // The status also indicates
+    //     // whether it was a client or
+    //     // server error
+    //     if res.status().is_client_error() {
+    //         // The APILayer API
+    //         // doesn’t return a
+    //         // nice error, so we
+    //         // create our own.
+    //         let err = transform_error(res).await;
+    //         // Returns a
+    //         // client or server
+    //         // error with our
+    //         // APILayerError
+    //         // encapsulated
+    //         // return Err(handle_errors::Error::ClientError(err));
+    //         return Err(warp::reject::custom(handle_errors::Error::ClientError(err)));
+    //     } else {
+    //         // The APILayer API
+    //         // doesn’t return a
+    //         // nice error, so we
+    //         // create our own.
+    //         let err = transform_error(res).await;
+    //         // Returns a
+    //         // client or server
+    //         // error with our
+    //         // APILayerError
+    //         // encapsulated
+    //         // return Err(handle_errors::Error::ServerError(err));
+    //         return Err(warp::reject::custom(handle_errors::Error::ServerError(err)));
+    //     }
+    // }
+    // let res = res
+    //     .json::<BadWordsResponse>()
+    //     .await
+    //     .map_err(|e| handle_errors::Error::ExternalAPIError(e))?;
+    // let content = res.censored_content;
+    // let question = NewQuestion {
+    //     title: new_question.title,
+    //     content,
+    //     tags: new_question.tags,
+    // };
+
+    let title = match check_profanity(new_question.title).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
+    let content = match check_profanity(new_question.content).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
     let question = NewQuestion {
-        title: new_question.title,
+        title,
         content,
         tags: new_question.tags,
     };
+
     match store.add_question(question).await {
         // While we are at it,
         // we return a proper
@@ -213,16 +229,16 @@ pub async fn add_question(
     }
 }
 
-async fn transform_error(res: reqwest::Response) -> handle_errors::APILayerError {
-    // Takes a response (which
-    // we know is an error at this
-    // point) and adds a status
-    // code to the message
-    handle_errors::APILayerError {
-        status: res.status().as_u16(),
-        message: res.json::<APIResponse>().await.unwrap().message,
-    }
-}
+// async fn transform_error(res: reqwest::Response) -> handle_errors::APILayerError {
+//     // Takes a response (which
+//     // we know is an error at this
+//     // point) and adds a status
+//     // code to the message
+//     handle_errors::APILayerError {
+//         status: res.status().as_u16(),
+//         message: res.json::<APIResponse>().await.unwrap().message,
+//     }
+// }
 pub async fn update_question(
     id: i32,
     store: Store,
@@ -238,6 +254,20 @@ pub async fn update_question(
     //     Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
     // };
     // Ok(warp::reply::json(&res))
+    let title = match check_profanity(question.title).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
+    let content = match check_profanity(question.content).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
+    let question = Question {
+        id: question.id,
+        title,
+        content,
+        tags: question.tags,
+    };
     match store.update_question(question, id).await {
         Ok(res) => Ok(warp::reply::json(&res)),
         Err(e) => Err(warp::reject::custom(e)),

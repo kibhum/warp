@@ -1,5 +1,6 @@
 #![warn(clippy::all)]
 use handle_errors::return_error;
+mod profanity;
 mod routes;
 mod store;
 mod types;
