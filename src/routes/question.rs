@@ -5,7 +5,7 @@ use crate::types::{pagination::extract_pagination, pagination::Pagination};
 use std::collections::HashMap;
 // use tracing::{info, instrument};
 use crate::profanity::check_profanity;
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 use warp::http::StatusCode;
 
 use tracing::{event, info, instrument, Level};
@@ -254,18 +254,61 @@ pub async fn update_question(
     //     Err(e) => return Err(warp::reject::custom(Error::DatabaseQueryError(e))),
     // };
     // Ok(warp::reply::json(&res))
-    let title = match check_profanity(question.title).await {
-        Ok(res) => res,
-        Err(e) => return Err(warp::reject::custom(e)),
-    };
-    let content = match check_profanity(question.content).await {
-        Ok(res) => res,
-        Err(e) => return Err(warp::reject::custom(e)),
-    };
+    // let title = match check_profanity(question.title).await {
+    //     Ok(res) => res,
+    //     Err(e) => return Err(warp::reject::custom(e)),
+    // };
+    // let content = match check_profanity(question.content).await {
+    //     Ok(res) => res,
+    //     Err(e) => return Err(warp::reject::custom(e)),
+    // };
+
+    // Uses tokio::spawn to wrap
+    // our asynchronous function
+    // that returns a future,
+    // without awaiting it yet
+    // let title = tokio::spawn(check_profanity(question.title));
+    // let content = tokio::spawn(check_profanity(question.content));
+    // // We can now run both in parallel, returning a
+    // // tuple that contains the Result for the title
+    // // and one for the content check.
+    // let (title, content) = (title.await.unwrap(), content.await.unwrap());
+    // // Checks if
+    // // both HTTP
+    // // calls were
+    // // successful
+    // if title.is_err() {
+    //     return Err(warp::reject::custom(title.unwrap_err()));
+    // }
+    // if content.is_err() {
+    //     return Err(warp::reject::custom(content.unwrap_err()));
+    // }
+
+    let title = check_profanity(question.title);
+    let content = check_profanity(question.content);
+    // Instead of the
+    // spawn, we don’t
+    // have to wrap the
+    // function calls
+    // separately. We
+    // just call them
+    // inside the join!
+    // macro without
+    // any await
+    let (title, content) = tokio::join!(title, content);
+    if title.is_err() {
+        return Err(warp::reject::custom(title.unwrap_err()));
+    }
+    if content.is_err() {
+        return Err(warp::reject::custom(content.unwrap_err()));
+    }
+
     let question = Question {
         id: question.id,
-        title,
-        content,
+        // title,
+        // content,
+        title: title.unwrap(),
+        content: content.unwrap(),
         tags: question.tags,
     };
     match store.update_question(question, id).await {
