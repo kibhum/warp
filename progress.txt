@@ -1,2 +1,3 @@
-Page - 247
-IImplementing a retry for external HTTP calls
+Page - 257
+Add authentication
+and authorization
