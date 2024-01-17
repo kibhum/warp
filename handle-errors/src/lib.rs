@@ -25,12 +25,33 @@ pub enum Error {
     // DatabaseQueryError(SqlxError),
     DatabaseQueryError,
     ExternalAPIError(ReqwestError),
+    // In case the HTTP client
+    // (Reqwest) returns an error,
+    // we create a ClientError
+    // enum variant
+    ClientError(APILayerError),
+    // In case the external API returns a
+    // 4xx or 5xx HTTP status code, we
+    // have a ServerError variant.
+    ServerError(APILayerError),
+}
+
+#[derive(Debug, Clone)]
+pub struct APILayerError {
+    pub status: u16,
+    pub message: String,
+}
+
+impl std::fmt::Display for APILayerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Status: {}, Message: {}", self.status, self.message)
+    }
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match *self {
-            Error::ParseError(ref err) => {
+        match &*self {
+            Error::ParseError(err) => {
                 write!(f, "Cannot parse parameter: {}", err)
             }
             Error::MissingParameters => write!(f, "Missing parameter"),
@@ -42,13 +63,20 @@ impl std::fmt::Display for Error {
             Error::DatabaseQueryError => {
                 write!(f, "Cannot update, invalid data.")
             }
-            Error::ExternalAPIError(ref err) => {
+            Error::ExternalAPIError(err) => {
                 write!(f, "Cannot execute: {}", err)
+            }
+            Error::ClientError(err) => {
+                write!(f, "External Client error: {}", err)
+            }
+            Error::ServerError(err) => {
+                write!(f, "External Server error: {}", err)
             }
         }
     }
 }
 impl Reject for Error {}
+impl Reject for APILayerError {}
 
 pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     println!("{:?}", r);
@@ -81,6 +109,18 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::RANGE_NOT_SATISFIABLE,
+        ))
+    } else if let Some(crate::Error::ClientError(e)) = r.find() {
+        event!(Level::ERROR, "{}", e);
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ))
+    } else if let Some(crate::Error::ServerError(e)) = r.find() {
+        event!(Level::ERROR, "{}", e);
+        Ok(warp::reply::with_status(
+            "Internal Server Error".to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
         ))
     } else if let Some(error) = r.find::<CorsForbidden>() {
         Ok(warp::reply::with_status(
