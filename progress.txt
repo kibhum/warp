@@ -1,3 +1,2 @@
-Page - 257
-Add authentication
-and authorization
+Page - 275
+Stateful vs. stateless authentication
