@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 warp = "0.3"
-# sqlx = { version = "0.5" }
+sqlx = { version = "0.5" }
 tracing = { version = "0.1", features = ["log"] }
 reqwest = "0.11"
 reqwest-middleware = "0.1.1"

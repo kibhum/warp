@@ -7,11 +7,12 @@ use warp::{
     reject::Reject,
     Rejection, Reply,
 };
+const DUPLICATE_KEY: u32 = 23505;
 // Imports the sqlx Error and
 // renames it so there is no
 // confusion with our own
 // Error enum
-// use sqlx::error::Error as SqlxError;
+use sqlx::error::Error as SqlxError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,8 +24,8 @@ pub enum Error {
     // type to our enum,
     // which can hold the
     // actual sqlx error
-    // DatabaseQueryError(SqlxError),
-    DatabaseQueryError,
+    DatabaseQueryError(SqlxError),
+    // DatabaseQueryError,
     // ExternalAPIError(ReqwestError),
     ReqwestAPIError(ReqwestError),
     MiddlewareReqwestAPIError(MiddlewareReqwestError),
@@ -63,7 +64,7 @@ impl std::fmt::Display for Error {
             // Error::DatabaseQueryError(ref err) => {
             //     write!(f, "Query could not be executed: {}", err)
             // }
-            Error::DatabaseQueryError => {
+            Error::DatabaseQueryError(_) => {
                 write!(f, "Cannot update, invalid data.")
             }
             // Error::ExternalAPIError(err) => {
@@ -89,7 +90,7 @@ impl Reject for APILayerError {}
 
 pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     println!("{:?}", r);
-    if let Some(crate::Error::DatabaseQueryError) = r.find() {
+    if let Some(crate::Error::DatabaseQueryError(e)) = r.find() {
         // event!(
         //     Level::ERROR,
         //     code = error
@@ -102,12 +103,45 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         //     db_message = error.as_database_error().unwrap().message(),
         //     constraint = error.as_database_error().unwrap().constraint().unwrap()
         // );
-        event!(Level::ERROR, "Database query error");
-        Ok(warp::reply::with_status(
-            crate::Error::DatabaseQueryError.to_string(),
-            // "Invalid entity".to_string(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ))
+        // event!(Level::ERROR, "Database query error");
+        // Ok(warp::reply::with_status(
+        //     crate::Error::DatabaseQueryError.to_string(),
+        //     // "Invalid entity".to_string(),
+        //     StatusCode::UNPROCESSABLE_ENTITY,
+        // ))
+        // Matches against sqlx::Error
+        // to see if we have a database
+        // error on our hands
+        match e {
+            sqlx::Error::Database(err) => {
+                // If it’s a database
+                // error, we know we have a
+                // code field. We parse the
+                // &str to a i32 so we can
+                // compare it to the one
+                // we are looking for
+                if err.code().unwrap().parse::<u32>().unwrap() == DUPLICATE_KEY {
+                    Ok(warp::reply::with_status(
+                        // If it’s the code we are
+                        // looking for, we pass
+                        // back a message
+                        // that the account
+                        // already exists
+                        "Account already exsists".to_string(),
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                    ))
+                } else {
+                    Ok(warp::reply::with_status(
+                        "Cannot update data".to_string(),
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                    ))
+                }
+            }
+            _ => Ok(warp::reply::with_status(
+                "Cannot update data".to_string(),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            )),
+        }
     }
     // else if let Some(crate::Error::ExternalAPIError(e)) = r.find() {
     //     event!(Level::ERROR, "{}", e);

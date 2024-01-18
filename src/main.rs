@@ -153,6 +153,13 @@ async fn main() {
         .and(store_filter.clone())
         .and(warp::body::form())
         .and_then(routes::answer::add_answer);
+
+    let registration = warp::post()
+        .and(warp::path("registration"))
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(routes::authentication::register);
     //Defines the routes variable,
     // which will come in handy later
     let routes = get_questions
@@ -160,6 +167,7 @@ async fn main() {
         .or(update_question)
         .or(add_answer)
         .or(delete_question)
+        .or(registration)
         .with(cors)
         // .with(log)
         // Step 4: Set
