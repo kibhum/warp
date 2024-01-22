@@ -1,3 +1,4 @@
+use argon2::Error as ArgonError;
 use reqwest::Error as ReqwestError;
 use reqwest_middleware::Error as MiddlewareReqwestError;
 use tracing::{event, Level};
@@ -18,6 +19,8 @@ use sqlx::error::Error as SqlxError;
 pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
+    WrongPassword,
+    ArgonLibraryError(ArgonError),
     // InvalidRange,
     // QuestionNotFound,
     // Adds a new error
@@ -75,6 +78,12 @@ impl std::fmt::Display for Error {
             }
             Error::MiddlewareReqwestAPIError(err) => {
                 write!(f, "External API error: {}", err)
+            }
+            Error::WrongPassword => {
+                write!(f, "Wrong password")
+            }
+            Error::ArgonLibraryError(_) => {
+                write!(f, "Cannot verifiy password")
             }
             Error::ClientError(err) => {
                 write!(f, "External Client error: {}", err)
@@ -188,6 +197,12 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         Ok(warp::reply::with_status(
             error.to_string(),
             StatusCode::UNPROCESSABLE_ENTITY,
+        ))
+    } else if let Some(crate::Error::WrongPassword) = r.find() {
+        event!(Level::ERROR, "Entered wrong password");
+        Ok(warp::reply::with_status(
+            "Wrong E-Mail/Password combination".to_string(),
+            StatusCode::UNAUTHORIZED,
         ))
     }
     // else if let Some(_InvalidId) = r.find::<InvalidId>() {

@@ -684,6 +684,7 @@ version = "0.1.0"
 dependencies = [
  "reqwest",
  "reqwest-middleware",
+ "rust-argon2",
  "sqlx",
  "tracing",
  "warp",
@@ -2591,6 +2592,7 @@ dependencies = [
 name = "webdev"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "env_logger",
  "handle-errors",
  "log",
