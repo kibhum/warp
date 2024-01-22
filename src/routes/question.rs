@@ -6,6 +6,7 @@ use std::collections::HashMap;
 // use tracing::{info, instrument};
 use crate::profanity::check_profanity;
 // use serde::{Deserialize, Serialize};
+use crate::types::account::Session;
 use warp::http::StatusCode;
 
 use tracing::{event, info, instrument, Level};
@@ -100,6 +101,7 @@ pub async fn get_questions(
 }
 
 pub async fn add_question(
+    session: Session,
     store: Store,
     new_question: NewQuestion,
 ) -> Result<impl warp::Reply, warp::Rejection> {
@@ -203,6 +205,7 @@ pub async fn add_question(
     //     content,
     //     tags: new_question.tags,
     // };
+    let account_id = session.account_id;
 
     let title = match check_profanity(new_question.title).await {
         Ok(res) => res,
@@ -218,7 +221,7 @@ pub async fn add_question(
         tags: new_question.tags,
     };
 
-    match store.add_question(question).await {
+    match store.add_question(question, account_id).await {
         // While we are at it,
         // we return a proper
         // question back to the
@@ -241,6 +244,11 @@ pub async fn add_question(
 // }
 pub async fn update_question(
     id: i32,
+    // We expect the second
+    // parameter to be the type
+    // Session, since we extract it
+    // via the auth middleware.
+    session: Session,
     store: Store,
     question: Question,
 ) -> Result<impl warp::Reply, warp::Rejection> {
@@ -284,40 +292,67 @@ pub async fn update_question(
     //     return Err(warp::reject::custom(content.unwrap_err()));
     // }
 
-    let title = check_profanity(question.title);
-    let content = check_profanity(question.content);
-    // Instead of the
-    // spawn, we don’t
-    // have to wrap the
-    // function calls
-    // separately. We
-    // just call them
-    // inside the join!
-    // macro without
-    // any await
-    let (title, content) = tokio::join!(title, content);
-    if title.is_err() {
-        return Err(warp::reject::custom(title.unwrap_err()));
-    }
-    if content.is_err() {
-        return Err(warp::reject::custom(content.unwrap_err()));
-    }
+    // Gets account_id out of
+    // the Session object to be
+    // able to pass a reference
+    // to later functions
+    let account_id = session.account_id;
+    // A newly created
+    // store function
+    // that checks if
+    // the question was
+    // originally created
+    // by the same
+    // account
+    if store.is_question_owner(id, &account_id).await? {
+        let title = check_profanity(question.title);
+        let content = check_profanity(question.content);
+        // Instead of the
+        // spawn, we don’t
+        // have to wrap the
+        // function calls
+        // separately. We
+        // just call them
+        // inside the join!
+        // macro without
+        // any await
+        let (title, content) = tokio::join!(title, content);
+        if title.is_err() {
+            return Err(warp::reject::custom(title.unwrap_err()));
+        }
+        if content.is_err() {
+            return Err(warp::reject::custom(content.unwrap_err()));
+        }
 
-    let question = Question {
-        id: question.id,
-        // title,
-        // content,
-        title: title.unwrap(),
-        content: content.unwrap(),
-        tags: question.tags,
-    };
-    match store.update_question(question, id).await {
-        Ok(res) => Ok(warp::reply::json(&res)),
-        Err(e) => Err(warp::reject::custom(e)),
+        let question = Question {
+            id: question.id,
+            // title,
+            // content,
+            title: title.unwrap(),
+            content: content.unwrap(),
+            tags: question.tags,
+        };
+        // We now also pass the account_id
+        // to the store function, to fill our
+        // added account_id column in the
+        // database for each new entry.
+        match store.update_question(question, id, account_id).await {
+            Ok(res) => Ok(warp::reply::json(&res)),
+            Err(e) => Err(warp::reject::custom(e)),
+        }
+    } else {
+        // If the account_id from the Session doesn’t
+        // match the one from the database, we
+        // return 401 Unauthorized.
+        Err(warp::reject::custom(handle_errors::Error::Unauthorized))
     }
 }
 
-pub async fn delete_question(id: i32, store: Store) -> Result<impl warp::Reply, warp::Rejection> {
+pub async fn delete_question(
+    id: i32,
+    session: Session,
+    store: Store,
+) -> Result<impl warp::Reply, warp::Rejection> {
     // match store.questions.write().await.remove(&QuestionId(id)) {
     //     Some(_) => Ok(warp::reply::with_status("Question deleted", StatusCode::OK)),
     //     None => Err(warp::reject::custom(Error::QuestionNotFound)),
@@ -330,11 +365,16 @@ pub async fn delete_question(id: i32, store: Store) -> Result<impl warp::Reply, 
     //     format!("Question {} deleted", id),
     //     StatusCode::OK,
     // ))
-    match store.delete_question(id).await {
-        Ok(_) => Ok(warp::reply::with_status(
-            format!("Question {} deleted", id),
-            StatusCode::OK,
-        )),
-        Err(e) => Err(warp::reject::custom(e)),
+    let account_id = session.account_id;
+    if store.is_question_owner(id, &account_id).await? {
+        match store.delete_question(id, account_id).await {
+            Ok(_) => Ok(warp::reply::with_status(
+                format!("Question {} deleted", id),
+                StatusCode::OK,
+            )),
+            Err(e) => Err(warp::reject::custom(e)),
+        }
+    } else {
+        Err(warp::reject::custom(handle_errors::Error::Unauthorized))
     }
 }

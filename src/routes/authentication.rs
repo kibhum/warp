@@ -1,9 +1,11 @@
 use crate::store::Store;
-use crate::types::account::{Account, AccountId};
+use crate::types::account::{Account, AccountId, Session};
 use argon2::{self, Config};
 use chrono::prelude::*;
-use paseto::v2::local_paseto;
+use warp::Filter;
+// use paseto::v2::local_paseto;
 use rand::Rng;
+use std::future;
 use warp::http::StatusCode;
 
 pub async fn login(store: Store, login: Account) -> Result<impl warp::Reply, warp::Rejection> {
@@ -106,4 +108,25 @@ pub fn hash_password(password: &[u8]) -> String {
     // the config, we can hash our
     // clear-text password.
     argon2::hash_encoded(password, &salt, &config).unwrap()
+}
+
+pub fn verify_token(token: String) -> Result<Session, handle_errors::Error> {
+    let token = paseto::tokens::validate_local_token(
+        &token,
+        None,
+        &"RANDOM WORDS WINTER MACINTOSH PC".as_bytes(),
+        &paseto::tokens::TimeBackend::Chrono,
+    )
+    .map_err(|_| handle_errors::Error::CannotDecryptToken)?;
+    serde_json::from_value::<Session>(token).map_err(|_| handle_errors::Error::CannotDecryptToken)
+}
+
+pub fn auth() -> impl Filter<Extract = (Session,), Error = warp::Rejection> + Clone {
+    warp::header::<String>("Authorization").and_then(|token: String| {
+        let token = match verify_token(token) {
+            Ok(t) => t,
+            Err(_) => return future::ready(Err(warp::reject::reject())),
+        };
+        future::ready(Ok(token))
+    })
 }

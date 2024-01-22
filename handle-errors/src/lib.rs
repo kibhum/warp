@@ -41,6 +41,8 @@ pub enum Error {
     // 4xx or 5xx HTTP status code, we
     // have a ServerError variant.
     ServerError(APILayerError),
+    Unauthorized,
+    CannotDecryptToken,
 }
 
 #[derive(Debug, Clone)]
@@ -85,12 +87,14 @@ impl std::fmt::Display for Error {
             Error::ArgonLibraryError(_) => {
                 write!(f, "Cannot verifiy password")
             }
+            Error::CannotDecryptToken => write!(f, "Cannot decrypt error"),
             Error::ClientError(err) => {
                 write!(f, "External Client error: {}", err)
             }
             Error::ServerError(err) => {
                 write!(f, "External Server error: {}", err)
             }
+            Error::Unauthorized => write!(f, "No permission to change the underlying resource"),
         }
     }
 }
@@ -202,6 +206,12 @@ pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
         event!(Level::ERROR, "Entered wrong password");
         Ok(warp::reply::with_status(
             "Wrong E-Mail/Password combination".to_string(),
+            StatusCode::UNAUTHORIZED,
+        ))
+    } else if let Some(crate::Error::Unauthorized) = r.find() {
+        event!(Level::ERROR, "Not matching account id");
+        Ok(warp::reply::with_status(
+            "No permission to change underlying resource".to_string(),
             StatusCode::UNAUTHORIZED,
         ))
     }

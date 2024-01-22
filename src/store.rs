@@ -29,6 +29,37 @@ impl Store {
     //     serde_json::from_str(file).expect("can't read questions.json")
     // }
 
+    pub async fn is_question_owner(
+        &self,
+        question_id: i32,
+        account_id: &AccountId,
+    ) -> Result<bool, Error> {
+        // Uses the SELECT
+        // query from
+        // get_questions
+        // and two WHERE
+        // clauses to it: id
+        // and account_id
+        match sqlx::query("SELECT * from questions where id = $1 and account_id = $2")
+            .bind(question_id)
+            .bind(account_id.0)
+            // fetch_optional gives
+            // us either None or one
+            // answer back.
+            .fetch_optional(&self.connection)
+            .await
+        {
+            // Checks whether the
+            // result “is some,” and
+            // if not, we return false
+            Ok(question) => Ok(question.is_some()),
+            Err(e) => {
+                tracing::event!(tracing::Level::ERROR, "{:?}", e);
+                Err(Error::DatabaseQueryError(e))
+            }
+        }
+    }
+
     pub async fn new(db_url: &str) -> Self {
         let db_pool = match PgPoolOptions::new()
             .max_connections(5)
@@ -100,15 +131,20 @@ impl Store {
         }
     }
 
-    pub async fn add_question(&self, new_question: NewQuestion) -> Result<Question, Error> {
+    pub async fn add_question(
+        &self,
+        new_question: NewQuestion,
+        account_id: AccountId,
+    ) -> Result<Question, Error> {
         match sqlx::query(
             "INSERT INTO questions (title, content, tags)
-        VALUES ($1, $2, $3)
+        VALUES ($1, $2, $3, $4)
         RETURNING id, title, content, tags",
         )
         .bind(new_question.title)
         .bind(new_question.content)
         .bind(new_question.tags)
+        .bind(account_id.0)
         .map(|row: PgRow| Question {
             id: QuestionId(row.get("id")),
             title: row.get("title"),
@@ -130,17 +166,19 @@ impl Store {
         &self,
         question: Question,
         question_id: i32,
+        account_id: AccountId,
     ) -> Result<Question, Error> {
         match sqlx::query(
             "UPDATE questions
         SET title = $1, content = $2, tags = $3
-        WHERE id = $4
+        WHERE id = $4 AND account_id = $5
         RETURNING id, title, content, tags",
         )
         .bind(question.title)
         .bind(question.content)
         .bind(question.tags)
         .bind(question_id)
+        .bind(account_id.0)
         .map(|row: PgRow| Question {
             id: QuestionId(row.get("id")),
             title: row.get("title"),
@@ -158,9 +196,14 @@ impl Store {
         }
     }
 
-    pub async fn delete_question(&self, question_id: i32) -> Result<bool, Error> {
-        match sqlx::query("DELETE FROM questions WHERE id = $1")
+    pub async fn delete_question(
+        &self,
+        question_id: i32,
+        account_id: AccountId,
+    ) -> Result<bool, Error> {
+        match sqlx::query("DELETE FROM questions WHERE id = $1 AND account_id = $5")
             .bind(question_id)
+            .bind(account_id.0)
             .execute(&self.connection)
             .await
         {
@@ -172,10 +215,15 @@ impl Store {
         }
     }
 
-    pub async fn add_answer(&self, new_answer: NewAnswer) -> Result<Answer, Error> {
-        match sqlx::query("INSERT INTO answers (content, question_id) VALUES ($1, $2)")
+    pub async fn add_answer(
+        &self,
+        new_answer: NewAnswer,
+        account_id: AccountId,
+    ) -> Result<Answer, Error> {
+        match sqlx::query("INSERT INTO answers (content, question_id) VALUES ($1, $2, $3)")
             .bind(new_answer.content)
             .bind(new_answer.question_id.0)
+            .bind(account_id.0)
             .map(|row: PgRow| Answer {
                 id: AnswerId(row.get("id")),
                 content: row.get("content"),
