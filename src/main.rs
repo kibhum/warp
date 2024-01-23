@@ -7,6 +7,8 @@ mod store;
 mod types;
 // use std::io::{Error, ErrorKind};
 // use std::str::FromStr;
+use dotenv;
+use std::env;
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{http::Method, Filter};
 // impl Question {
@@ -58,7 +60,19 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), handle_errors::Error> {
+    dotenv::dotenv().ok();
+    if let Err(_) = env::var("BAD_WORDS_API_KEY") {
+        panic!("BadWords API key not set");
+    }
+    if let Err(_) = env::var("PASETO_KEY") {
+        panic!("PASETO key not set");
+    }
+    let port = std::env::var("PORT")
+        .ok()
+        .map(|val| val.parse::<u16>())
+        .unwrap_or(Ok(8080))
+        .map_err(|e| handle_errors::Error::ParseError(e))?;
     // The config crate gives us a
     // builder method to read our
     // config files into the codebase
@@ -116,11 +130,12 @@ async fn main() {
     // ))
     // .await;
     let store = store::Store::new(&format!("{}", config.database_host)).await;
+    // .map_err(|e| handle_errors::Error::DatabaseQueryError(e))?;
 
     sqlx::migrate!()
         .run(&store.clone().connection)
         .await
-        .expect("Cannot run migration");
+        .map_err(|e| handle_errors::Error::MigrationError(e));
 
     let store_filter = warp::any().map(move || store.clone());
     // let id_filter = warp::any().map(|| uuid::Uuid::new_v4().to_string());
@@ -230,7 +245,9 @@ async fn main() {
         .with(warp::trace::request())
         .recover(return_error);
     // warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
-    warp::serve(routes).run(([127, 0, 0, 1], config.port)).await;
+    // warp::serve(routes).run(([127, 0, 0, 1], config.port)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    Ok(())
 }
 
 // impl FromStr for QuestionId {

@@ -2730,6 +2730,7 @@ version = "1.0.0"
 dependencies = [
  "chrono",
  "config",
+ "dotenv",
  "env_logger",
  "handle-errors",
  "log",

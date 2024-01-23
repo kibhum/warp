@@ -43,6 +43,7 @@ pub enum Error {
     ServerError(APILayerError),
     Unauthorized,
     CannotDecryptToken,
+    MigrationError(sqlx::migrate::MigrateError),
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +96,7 @@ impl std::fmt::Display for Error {
                 write!(f, "External Server error: {}", err)
             }
             Error::Unauthorized => write!(f, "No permission to change the underlying resource"),
+            Error::MigrationError(_) => write!(f, "Cannot migrate data"),
         }
     }
 }
