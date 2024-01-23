@@ -1,2 +1,2 @@
-Page - 295
-Deploy your application
+Page - 315
+Create a statically linked Docker image
