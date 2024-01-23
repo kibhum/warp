@@ -1,4 +1,5 @@
 #![warn(clippy::all)]
+use config::Config;
 use handle_errors::return_error;
 mod profanity;
 mod routes;
@@ -43,8 +44,35 @@ use warp::{http::Method, Filter};
 //     }
 // }
 
+#[derive(Debug, Default, serde::Deserialize, PartialEq)]
+struct Args {
+    log_level: String,
+    /// URL for the postgres database
+    database_host: String,
+    /// PORT number for the database connection
+    database_port: u16,
+    /// Database name
+    database_name: String,
+    /// Web server port
+    port: u16,
+}
+
 #[tokio::main]
 async fn main() {
+    // The config crate gives us a
+    // builder method to read our
+    // config files into the codebase
+    let config = Config::builder()
+        // We don’t need to specify
+        // the .toml extension when
+        // parsing the file
+        .add_source(config::File::with_name("setup"))
+        .build()
+        .unwrap();
+    // After reading the file, we try
+    // to map it (deserialize it) and
+    // create a new Args object
+    let config = config.try_deserialize::<Args>().unwrap();
     // env_logger::init();
     // log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     // log::error!("This is an error!");
@@ -54,8 +82,15 @@ async fn main() {
     // Step 1:
     // Add the
     // log level.
-    let log_filter = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| "handle_errors=warn,webdev=info,warp=error".to_owned());
+    // let log_filter = std::env::var("RUST_LOG")
+    //     .unwrap_or_else(|_| "handle_errors=warn,webdev=info,warp=error".to_owned());
+
+    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
+        format!(
+            "handle_errors={},webdev={},warp={}",
+            config.log_level, config.log_level, config.log_level
+        )
+    });
 
     // let log = warp::log::custom(|info| {
     //     log::info!(
@@ -73,7 +108,14 @@ async fn main() {
     // if you need to add a username and password,
     // the connection would look like:
     // "postgres:/ /username:password@localhost:5432/rustwebdev"
-    let store = store::Store::new("postgres://postgres:sqlkibethh@localhost/rustwebdev").await;
+    // let store = store::Store::new("postgres://postgres:sqlkibethh@localhost/rustwebdev").await;
+
+    // let store = store::Store::new(&format!(
+    //     "postgres://{}:{}/{}",
+    //     config.database_host, config.database_port, config.database_name
+    // ))
+    // .await;
+    let store = store::Store::new(&format!("{}", config.database_host)).await;
 
     sqlx::migrate!()
         .run(&store.clone().connection)
@@ -187,7 +229,8 @@ async fn main() {
         // incoming requests.
         .with(warp::trace::request())
         .recover(return_error);
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    // warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], config.port)).await;
 }
 
 // impl FromStr for QuestionId {
