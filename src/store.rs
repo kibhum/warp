@@ -137,7 +137,7 @@ impl Store {
         account_id: AccountId,
     ) -> Result<Question, Error> {
         match sqlx::query(
-            "INSERT INTO questions (title, content, tags)
+            "INSERT INTO questions (title, content, tags, account_id)
         VALUES ($1, $2, $3, $4)
         RETURNING id, title, content, tags",
         )
